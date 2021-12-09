@@ -41,7 +41,7 @@ namespace WindowsFormsApp1
                 pictureBox1.Image = BitmapExtension.ToBitmap(imgInput);
             }
         }
-        //meg kéne úgy oldani, hogy a betöltött képet vegye alapul mindig a kövi operation
+        
 
 
         private void button2_Click(object sender, EventArgs e)
