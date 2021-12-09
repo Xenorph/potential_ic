@@ -9,137 +9,338 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Emgu;
 using Emgu.CV;
+using Emgu.CV.Structure;
 
 
-namespace WindowsFormsApp4
+namespace WindowsFormsApp1
 {
+
     public partial class Form1 : Form
     {
+        Image<Bgr, byte> imgInput;
+        Point center = new Point(-1, -1);
+        Image<Bgr, byte> imgRevert;
+        Image<Bgr, byte> imgTmp;
+        Image<Bgr, byte> imgSave;
+        Image<Bgr, byte> imgRevert2;
+        Image<Gray, byte> imgCC;
+          
         public Form1()
         {
             InitializeComponent();
         }
 
+        private void button7_Click(object sender, EventArgs e)
+        {
+            OpenFileDialog openfile = new OpenFileDialog();
+            openfile.Filter = "Image File (*.bmp, *.jpg)| *.bmp; *.jpg";
+            if (DialogResult.OK == openfile.ShowDialog()) 
+            {
+                imgInput = new Image<Bgr, byte>(openfile.FileName);
+                //imgGray = new Image<Bgr, byte>(openfile.FileName);
+                pictureBox1.Image = BitmapExtension.ToBitmap(imgInput);
+            }
+        }
+        //meg kéne úgy oldani, hogy a betöltött képet vegye alapul mindig a kövi operation
+
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            var gray = new Mat();
+            CvInvoke.CvtColor(imgInput, gray, Emgu.CV.CvEnum.ColorConversion.Bgr2Gray);
+            pictureBox1.Image = BitmapExtension.ToBitmap(gray);
+
+            pictureBox1.Image.Save("krumpli.jpg");
+            pictureBox1.Image.Save("revert.jpg");
+            imgRevert = new Image<Bgr, byte>("revert.jpg");
+            imgInput = new Image<Bgr, byte>("krumpli.jpg");
+            //pictureBox1.Image = BitmapExtension.ToBitmap(imgInput);
+
+        }
+
         private void button1_Click(object sender, EventArgs e)
         {
-            OpenFileDialog open = new OpenFileDialog();
-            open.Filter = "Image Files(.png; *.jpg; *.jpeg; *.bmp; *.tif;)|.png; *.jpg; *.jpeg; *.bmp; *.tif;";
-            if (open.ShowDialog() == DialogResult.OK)
-            {
-                //A kép megnyitása és grayscale konvertálása
-                Mat img =  CvInvoke.Imread(open.FileName);
-                var gray = new  Mat();
-                CvInvoke.CvtColor(img, gray,  Emgu.CV.CvEnum.ColorConversion.Bgr2Gray);
-                pictureBox1.Image = BitmapExtension.ToBitmap(img);
+            pictureBox1.Image.Save("revert.jpg");
+            imgRevert = new Image<Bgr, byte>("revert.jpg");
 
-                //A kép thresholdolása 
-                var thresh = new  Mat();
-                 CvInvoke.Threshold(gray, thresh, 47, 255, Emgu.CV.CvEnum.ThresholdType.Binary);
-                //47 az alap itt
+            var threshold = new Mat();
+            CvInvoke.Threshold(imgInput, threshold, Convert.ToDouble($"{numericUpDown1.Value}"), 255, Emgu.CV.CvEnum.ThresholdType.Binary);
+            pictureBox1.Image = BitmapExtension.ToBitmap(threshold);
 
-                //Kell a morph műveleteknek, a vászon középpontját adja meg a (-1 -1) érték
-                Point center = new Point(-1, -1);
-
-                //Ez is kell a morph műveleteknek, ez adja a "vásznat" amin dolgoznak
-                var kernel = new  Mat();
-                kernel =  CvInvoke.GetStructuringElement(Emgu.CV.CvEnum.ElementShape.Rectangle, new Size(5, 5), center);
+            pictureBox1.Image.Save("krumpli.jpg");
+            imgInput = new Image<Bgr, byte>("krumpli.jpg");
+            //pictureBox1.Image = BitmapExtension.ToBitmap(imgInput);
 
 
+        }
 
-                //Ez a close művelet a MorphologyExből kiválasztva, kétszer lefuttatva. Ez lesz a picturebox2-ben
-                var closed = new  Mat();
-                 CvInvoke.MorphologyEx(thresh, closed,  Emgu.CV.CvEnum.MorphOp.Close, kernel, center, 2,  Emgu.CV.CvEnum.BorderType.Default, new  Emgu.CV.Structure.MCvScalar(1, 0));
-                pictureBox2.Image =  BitmapExtension.ToBitmap(closed);
-                //2 az alap itt
+        private void button3_Click(object sender, EventArgs e)
+        {
+            /*var gray = new Mat();
+            CvInvoke.CvtColor(imgInput, gray, Emgu.CV.CvEnum.ColorConversion.Bgr2Gray);
+            var threshold = new Mat(); 
+            CvInvoke.Threshold(gray, threshold, Convert.ToDouble($"{numericUpDown1.Value}"), 255, Emgu.CV.CvEnum.ThresholdType.Binary);
+            */
+            var kernel = new Mat();
+            kernel = CvInvoke.GetStructuringElement(Emgu.CV.CvEnum.ElementShape.Ellipse, new Size(Convert.ToInt32(numericUpDown2.Value), Convert.ToInt32(numericUpDown2.Value)), center);
 
-                //Ez az erode művelet háromszor lefuttatva. Ez lesz a picturebox3-ban 
-                var eroded = new  Mat();
-                 CvInvoke.Erode(closed, eroded, kernel, center, 3,  Emgu.CV.CvEnum.BorderType.Default, new Emgu.CV.Structure.MCvScalar(1, 0));
-                pictureBox3.Image =  BitmapExtension.ToBitmap(eroded);
+            pictureBox1.Image.Save("revert.jpg");
+            imgRevert = new Image<Bgr, byte>("revert.jpg");
 
-                //Xor művelettel összehasonlítja a második és harmadik képet. 
-                var merged = new  Mat();
-                 CvInvoke.BitwiseXor(eroded, closed, merged);
+            var opened = new Mat();
+            CvInvoke.MorphologyEx(imgInput, opened, Emgu.CV.CvEnum.MorphOp.Open, kernel, center, 1, Emgu.CV.CvEnum.BorderType.Default, new MCvScalar(1, 0));
+            pictureBox1.Image = BitmapExtension.ToBitmap(opened);
 
-                //Ezzel invertáljuk a képet
-                var inverted = new  Mat();
-                 CvInvoke.BitwiseNot(merged, inverted);
-
-                //Gombokat szedjük ki thresholdolással
-                var gomb = new  Mat();
-                 CvInvoke.Threshold(gray, gomb, 80, 255,  Emgu.CV.CvEnum.ThresholdType.Binary);
-                //pictureBox6.Image =  BitmapExtension.ToBitmap(gomb);
-
-                var openedgomb = new  Mat();
-                 CvInvoke.MorphologyEx(gomb, openedgomb,  Emgu.CV.CvEnum.MorphOp.Open, kernel, center, 1,  Emgu.CV.CvEnum.BorderType.Default, new  Emgu.CV.Structure.MCvScalar(1, 0));
-                //pictureBox6.Image =  BitmapExtension.ToBitmap(openedgomb);
-
-                var dilatedg = new  Mat();
-                 CvInvoke.Dilate(openedgomb, dilatedg, kernel, center, 1,  Emgu.CV.CvEnum.BorderType.Default, new  Emgu.CV.Structure.MCvScalar(1, 0));
-                pictureBox6.Image =  BitmapExtension.ToBitmap(dilatedg);
-
-                //var closedg = new  Mat();
-                // CvInvoke.MorphologyEx(openedgomb, closedg,  CvEnum.MorphOp.Close, kernel, center, 2,  CvEnum.BorderType.Default, new  Structure.MCvScalar(1, 0));
-
-                //Dilate művelet egyszer lefuttatva, hogy a kábelek (és a törések) jobban kivehetőek legyenek. Ez lesz a végső kép a picturebox4-ben
-                var dilated = new  Mat();
-                 CvInvoke.Dilate(inverted, dilated, kernel, center, 1,  Emgu.CV.CvEnum.BorderType.Default, new  Emgu.CV.Structure.MCvScalar(1, 0));
-                pictureBox4.Image =  BitmapExtension.ToBitmap(dilated);
-
-                var closedd = new  Mat();
-                 CvInvoke.MorphologyEx(dilated, closedd,  Emgu.CV.CvEnum.MorphOp.Close, kernel, center, 1,  Emgu.CV.CvEnum.BorderType.Default, new Emgu.CV.Structure.MCvScalar(1, 0));
-                //pictureBox7.Image =  BitmapExtension.ToBitmap(closedd);
+            pictureBox1.Image.Save("krumpli.jpg");
+            imgInput = new Image<Bgr, byte>("krumpli.jpg");
+            //pictureBox1.Image = BitmapExtension.ToBitmap(imgInput);
+        }
 
 
-                var invertedg = new  Mat();
-                 CvInvoke.BitwiseNot(dilatedg, invertedg);
-                pictureBox5.Image =  BitmapExtension.ToBitmap(invertedg);
+        private void button4_Click(object sender, EventArgs e)
+        {
+            /*var gray = new Mat();
+            CvInvoke.CvtColor(imgInput, gray, Emgu.CV.CvEnum.ColorConversion.Bgr2Gray);
+            var threshold = new Mat();
+            CvInvoke.Threshold(gray, threshold, Convert.ToDouble($"{numericUpDown1.Value}"), 255, Emgu.CV.CvEnum.ThresholdType.Binary);
+            */
+            var kernel = new Mat();
+            kernel = CvInvoke.GetStructuringElement(Emgu.CV.CvEnum.ElementShape.Ellipse, new Size(Convert.ToInt32(numericUpDown2.Value), Convert.ToInt32(numericUpDown2.Value)), center);
+
+            pictureBox1.Image.Save("revert.jpg");
+            imgRevert = new Image<Bgr, byte>("revert.jpg");
+
+            var closed = new Mat();
+            CvInvoke.MorphologyEx(imgInput, closed, Emgu.CV.CvEnum.MorphOp.Close, kernel, center, 1, Emgu.CV.CvEnum.BorderType.Default, new MCvScalar(1, 0));
+            pictureBox1.Image = BitmapExtension.ToBitmap(closed);
+
+            pictureBox1.Image.Save("krumpli.jpg");
+            imgInput = new Image<Bgr, byte>("krumpli.jpg");
+            //pictureBox1.Image = BitmapExtension.ToBitmap(imgInput);
+
+        }
+
+        private void button5_Click(object sender, EventArgs e)
+        {
+            /*var gray = new Mat();
+            CvInvoke.CvtColor(imgInput, gray, Emgu.CV.CvEnum.ColorConversion.Bgr2Gray);
+            var threshold = new Mat();
+            CvInvoke.Threshold(gray, threshold, Convert.ToDouble($"{numericUpDown1.Value}"), 255, Emgu.CV.CvEnum.ThresholdType.Binary);
+            */
+            var kernel = new Mat();
+            kernel = CvInvoke.GetStructuringElement(Emgu.CV.CvEnum.ElementShape.Ellipse, new Size(Convert.ToInt32(numericUpDown2.Value), Convert.ToInt32(numericUpDown2.Value)), center);
+
+            pictureBox1.Image.Save("revert.jpg");
+            imgRevert = new Image<Bgr, byte>("revert.jpg");
+
+            var dilated = new Mat();
+            CvInvoke.Dilate(imgInput, dilated, kernel, center, 1, Emgu.CV.CvEnum.BorderType.Default, new MCvScalar(1, 0));
+            pictureBox1.Image = BitmapExtension.ToBitmap(dilated);
+
+            pictureBox1.Image.Save("krumpli.jpg");
+            imgInput = new Image<Bgr, byte>("krumpli.jpg");
+            //pictureBox1.Image = BitmapExtension.ToBitmap(imgInput);
+        }
+
+        private void button6_Click(object sender, EventArgs e)
+        {
+            /*var gray = new Mat();
+            CvInvoke.CvtColor(imgInput, gray, Emgu.CV.CvEnum.ColorConversion.Bgr2Gray);
+            var threshold = new Mat();
+            CvInvoke.Threshold(gray, threshold, Convert.ToDouble($"{numericUpDown1.Value}"), 255, Emgu.CV.CvEnum.ThresholdType.Binary);
+            */
+            var kernel = new Mat();
+            kernel = CvInvoke.GetStructuringElement(Emgu.CV.CvEnum.ElementShape.Ellipse, new Size(Convert.ToInt32(numericUpDown2.Value), Convert.ToInt32(numericUpDown2.Value)), center);
+
+            pictureBox1.Image.Save("revert.jpg");
+            imgRevert = new Image<Bgr, byte>("revert.jpg");
+
+            var eroded = new Mat();
+            CvInvoke.Erode(imgInput, eroded, kernel, center, 1, Emgu.CV.CvEnum.BorderType.Default, new MCvScalar(1, 0));
+            pictureBox1.Image = BitmapExtension.ToBitmap(eroded);
+
+            pictureBox1.Image.Save("krumpli.jpg");
+            imgInput = new Image<Bgr, byte>("krumpli.jpg");
+            //pictureBox1.Image = BitmapExtension.ToBitmap(imgInput);
+        }
+
+        private void button9_Click(object sender, EventArgs e)
+        {
+            //imgTmp = new Image<Bgr, byte>("savebutton.jpg");
+
+            pictureBox1.Image.Save("revert.jpg");
+            imgRevert = new Image<Bgr, byte>("revert.jpg");
+            
+
+            var andop = new Mat();
+            CvInvoke.BitwiseAnd(imgInput, imgTmp, andop);
+            pictureBox2.Image = BitmapExtension.ToBitmap(andop);
+
+            pictureBox2.Image.Save("revert2.jpg");
+            imgRevert2 = new Image<Bgr, byte>("revert2.jpg");
+
+            
+
+        }
+
+        private void button10_Click(object sender, EventArgs e)
+        {
+            //imgTmp = new Image<Bgr, byte>("savebutton.jpg");
+
+            pictureBox1.Image.Save("revert.jpg");
+            imgRevert = new Image<Bgr, byte>("revert.jpg");
+            
+
+            var notop = new Mat();
+            CvInvoke.BitwiseNot(imgInput, notop);
+            pictureBox1.Image = BitmapExtension.ToBitmap(notop);
+
+            //pictureBox2.Image.Save("revert2.jpg");
+            //imgRevert2 = new Image<Bgr, byte>("revert2.jpg");
+
+            pictureBox1.Image.Save("krumpli.jpg");
+            imgInput = new Image<Bgr, byte>("krumpli.jpg");
+        }
+
+        private void button11_Click_1(object sender, EventArgs e)
+        {
+            //imgTmp = new Image<Bgr, byte>("savebutton.jpg");
+
+            pictureBox1.Image.Save("revert.jpg");
+            imgRevert = new Image<Bgr, byte>("revert.jpg");
+            
+
+            var orop = new Mat();
+            CvInvoke.BitwiseOr(imgInput, imgTmp, orop);
+            pictureBox2.Image = BitmapExtension.ToBitmap(orop);
+
+            pictureBox2.Image.Save("revert2.jpg");
+            imgRevert2 = new Image<Bgr, byte>("revert2.jpg");
+
+            
+        }
+
+        private void button12_Click_1(object sender, EventArgs e)
+        {
+            //imgTmp = new Image<Bgr, byte>("savebutton.jpg");
+
+            pictureBox1.Image.Save("revert.jpg");
+            imgRevert = new Image<Bgr, byte>("revert.jpg");
+            
+
+            var xorop = new Mat();
+            CvInvoke.BitwiseXor(imgInput, imgTmp, xorop);
+            pictureBox2.Image = BitmapExtension.ToBitmap(xorop);
+
+            pictureBox2.Image.Save("revert2.jpg");
+            imgRevert2 = new Image<Bgr, byte>("revert2.jpg");
+
+            
+        }
+
+        private void button8_Click(object sender, EventArgs e)
+        {
+            pictureBox1.Image.Save("tempimg.jpg");
+            imgTmp = new Image<Bgr, byte>("tempimg.jpg");
+            pictureBox3.Image = BitmapExtension.ToBitmap(imgTmp);
+        }
+
+        private void button14_Click(object sender, EventArgs e)
+        {
+            //pictureBox1.Image.Save("krumpli.jpg");
+            pictureBox1.Image = BitmapExtension.ToBitmap(imgRevert);
+            imgInput = imgRevert;
+            //pictureBox1.Image = BitmapExtension.ToBitmap(imgInput);
+            //imgTmp = new Image<Bgr, byte>("temp.jpg");
+        }
+
+        private void button13_Click(object sender, EventArgs e)
+        {
+            pictureBox1.Image.Save("revert.jpg");
+            imgRevert = new Image<Bgr, byte>("revert.jpg");
+
+            
+
+            var addop = new Mat();
+            CvInvoke.Add(imgInput, imgTmp, addop);
+            pictureBox2.Image = BitmapExtension.ToBitmap(addop);
+
+            pictureBox2.Image.Save("revert2.jpg");
+            imgRevert2 = new Image<Bgr, byte>("revert2.jpg");
+
+            
+        }
+
+        private void button15_Click(object sender, EventArgs e)
+        {
+            pictureBox1.Image.Save("revert.jpg");
+            imgRevert = new Image<Bgr, byte>("revert.jpg");
+            
+
+            var subop = new Mat();
+            CvInvoke.Subtract(imgInput, imgTmp, subop);
+            pictureBox2.Image = BitmapExtension.ToBitmap(subop);
+
+            pictureBox2.Image.Save("revert2.jpg");
+            imgRevert2 = new Image<Bgr, byte>("revert2.jpg");
+
+            
+        }
+
+        private void button16_Click(object sender, EventArgs e)
+        {
+            pictureBox1.Image.Save("saved.jpg");
+            imgSave = new Image<Bgr, byte>("saved.jpg");
+            pictureBox2.Image.Save("saved2.jpg");
+            imgSave = new Image<Bgr, byte>("saved2.jpg");
 
 
-                var final = new  Mat();
-                 CvInvoke.BitwiseAnd(dilated, invertedg, final);
-                //pictureBox6.Image =  BitmapExtension.ToBitmap(final);
+        }
 
-                var added = new Mat();
-                Emgu.CV.CvInvoke.Add(closed, invertedg, added);
-                //Emgu.CV.CvInvoke.AddWeighted(closed, 1, invertedg, 1, 0, added);
-                //pictureBox7.Image = BitmapExtension.ToBitmap(added);
+        private void button2_Click_2(object sender, EventArgs e)
+        {
+            var gray = new Mat();
+            CvInvoke.CvtColor(imgInput, gray, Emgu.CV.CvEnum.ColorConversion.Bgr2Gray);
+            pictureBox1.Image = BitmapExtension.ToBitmap(gray);
+            
 
-                var finalo = new Mat();
-                //CvInvoke.Dilate(final, finald, kernel, center, 1, Emgu.CV.CvEnum.BorderType.Default, new Emgu.CV.Structure.MCvScalar(1, 0));
-                CvInvoke.MorphologyEx(final, finalo, Emgu.CV.CvEnum.MorphOp.Open, kernel, center, 2, Emgu.CV.CvEnum.BorderType.Default, new Emgu.CV.Structure.MCvScalar(1, 0));
-                pictureBox6.Image = BitmapExtension.ToBitmap(finalo);
-
-                var finald = new Mat();
-                //CvInvoke.Dilate(finalo, finald, kernel, center, 1, Emgu.CV.CvEnum.BorderType.Default, new Emgu.CV.Structure.MCvScalar(1, 0));
-                CvInvoke.BitwiseAnd(eroded, finalo, finald);
-                //pictureBox6.Image = BitmapExtension.ToBitmap(finald);
+            Mat imglabels = new Mat();
+            CvInvoke.ConnectedComponents(gray, imglabels, Emgu.CV.CvEnum.LineType.FourConnected, Emgu.CV.CvEnum.DepthType.Cv16U);
+            
 
 
+            imgCC = imglabels.ToImage<Gray, byte>();
+            pictureBox2.Image = BitmapExtension.ToBitmap(imgCC);
+
+
+        }
+         
 
 
 
 
-                final.Save("final.jpg");
-                closedd.Save("closedd.jpg");
-                dilated.Save("dilated.jpg");
-                invertedg.Save("invertedg.jpg");
-                eroded.Save("eroded.jpg");
-                closed.Save("closed.jpg");
-                finalo.Save("finalo.jpg");
-                finald.Save("andeltimage.jpg");
 
 
-                //var cndcmp = new  Mat();
-                // CvInvoke.ConnectedComponents(inverted, cndcmp,  CvEnum.LineType.FourConnected);
+        private void button17_Click(object sender, EventArgs e)
+        {
+            pictureBox2.Image = BitmapExtension.ToBitmap(imgRevert2);
+            imgInput = imgRevert2;
+        }
 
-            }
 
-         }
 
-        private void pictureBox1_Click(object sender, EventArgs e)
+
+        private void label1_Click(object sender, EventArgs e)
         {
 
         }
+
+
+        private void button2_Click_1(object sender, EventArgs e)
+        {
+
+        }
+
+        
     }
 }
